@@ -7,12 +7,18 @@ Banc de test de capteurs, piloté en Python. Les bibliothèques des fabricants s
 | Régulateurs/débitmètres Bronkhorst (EL-FLOW, CORI-FLOW, EL-PRESS…), protocole ProPar | [bronkhorst-propar](https://github.com/bronkhorst-developer/bronkhorst-propar) | `externe/bronkhorst-propar` |
 | Hub Sensirion SEK-SensorBridge, pour les capteurs température/humidité (SHT4x, SHT3x, SHTC3) | [python-shdlc-sensorbridge](https://github.com/Sensirion/python-shdlc-sensorbridge) | `externe/python-shdlc-sensorbridge` |
 
+La centrale d'acquisition **Keysight 34970A** (liaison RS-232) n'a pas de bibliothèque officielle : son pilote est
+écrit dans ce projet, dans `src/banc_capteurs/equipements/keysight_34970a/`. Le
+[guide RS-232](src/banc_capteurs/equipements/keysight_34970a/README.md) décrit le câblage, la configuration de
+l'appareil et les codes d'erreur.
+
 ## Arborescence
 
 ```
 externe/bronkhorst-propar/          sous-module git : bibliothèque ProPar de Bronkhorst
 externe/python-shdlc-sensorbridge/  sous-module git : pilote du SensorBridge Sensirion
 src/banc_capteurs/                  code du banc
+  equipements/keysight_34970a/      pilote de la centrale d'acquisition Keysight 34970A
 scripts/                            installation et outils (test de connexion)
 tests/                              tests automatiques (sans matériel)
 ```
@@ -68,6 +74,33 @@ python scripts/test_connexion_sensorbridge.py --port COM4 --voie 1 --sht sht4x
 ```
 
 Options : `--tension` (alimentation du capteur, 3,3 V par défaut), `--baudrate` (460800 par défaut).
+
+## Tester la centrale Keysight 34970A
+
+Au préalable, en face avant : touche **Interface** → RS-232 (l'appareil sort d'usine en GPIB). Utiliser un câble
+**null-modem**. Les réglages d'usine (57600 bauds, 8 bits sans parité, XON/XOFF) sont ceux utilisés par défaut.
+
+```bash
+python scripts/test_connexion_34970a.py --lister-ports
+python scripts/test_connexion_34970a.py --port COM3
+python scripts/test_connexion_34970a.py --port COM3 --fonction VOLT:DC --voies 101
+python scripts/test_connexion_34970a.py --port COM3 --fonction TEMP --parametres TC,K --voies 101:105
+```
+
+Options : `--baudrate`, `--flux` (`xonxoff`, `rtscts`, `dsrdtr`, `aucun`), `--stopbits` (essayer 2 en cas d'erreur 511).
+
+Utilisation dans le code :
+
+```python
+from banc_capteurs.equipements.keysight_34970a import Keysight34970A
+
+with Keysight34970A.rs232("COM3") as daq:          # SYST:REM ... SYST:LOC
+    daq.configurer("TEMP", "101:105", "TC,K")
+    daq.demarrer_scan("101:105", intervalle_s=10)  # mesures stockées dans l'appareil
+    ...
+    for m in daq.lire_memoire():                   # lit et vide la mémoire
+        print(m.horodatage, m.voie, m.valeur)
+```
 
 Sous Linux, l'utilisateur doit avoir accès aux ports série (groupe `dialout`).
 
