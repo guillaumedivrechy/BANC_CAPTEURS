@@ -1,3 +1,6 @@
 [submodule "externe/bronkhorst-propar"]
 	path = externe/bronkhorst-propar
 	url = https://github.com/bronkhorst-developer/bronkhorst-propar.git
+[submodule "externe/python-shdlc-sensorbridge"]
+	path = externe/python-shdlc-sensorbridge
+	url = https://github.com/Sensirion/python-shdlc-sensorbridge.git

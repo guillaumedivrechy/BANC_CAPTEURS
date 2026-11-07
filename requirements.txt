@@ -1,4 +1,6 @@
-# Bibliothèque Bronkhorst ProPar, depuis le sous-module git
+# Bibliothèque Bronkhorst ProPar (régulateurs de débit), depuis le sous-module git
 -e ./externe/bronkhorst-propar
+# Pilote Sensirion SEK-SensorBridge (hub des capteurs température / humidité), depuis le sous-module git
+-e ./externe/python-shdlc-sensorbridge
 # Projet du banc de capteurs (+ outils de dev)
 -e .[dev]

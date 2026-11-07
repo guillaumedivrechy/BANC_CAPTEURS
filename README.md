@@ -1,16 +1,20 @@
 # Banc de capteurs
 
-Banc de test de capteurs. Les régulateurs/débitmètres Bronkhorst (EL-FLOW, CORI-FLOW, EL-PRESS…)
-sont pilotés en Python via le protocole ProPar, avec la bibliothèque officielle
-[bronkhorst-propar](https://github.com/bronkhorst-developer/bronkhorst-propar), intégrée ici en sous-module git.
+Banc de test de capteurs, piloté en Python. Les bibliothèques des fabricants sont intégrées en sous-modules git :
+
+| Matériel | Bibliothèque | Sous-module |
+|---|---|---|
+| Régulateurs/débitmètres Bronkhorst (EL-FLOW, CORI-FLOW, EL-PRESS…), protocole ProPar | [bronkhorst-propar](https://github.com/bronkhorst-developer/bronkhorst-propar) | `externe/bronkhorst-propar` |
+| Hub Sensirion SEK-SensorBridge, pour les capteurs température/humidité (SHT4x, SHT3x, SHTC3) | [python-shdlc-sensorbridge](https://github.com/Sensirion/python-shdlc-sensorbridge) | `externe/python-shdlc-sensorbridge` |
 
 ## Arborescence
 
 ```
-externe/bronkhorst-propar/   sous-module git : bibliothèque ProPar de Bronkhorst
-src/banc_capteurs/           code du banc
-scripts/                     installation et outils (test de connexion)
-tests/                       tests automatiques (sans matériel)
+externe/bronkhorst-propar/          sous-module git : bibliothèque ProPar de Bronkhorst
+externe/python-shdlc-sensorbridge/  sous-module git : pilote du SensorBridge Sensirion
+src/banc_capteurs/                  code du banc
+scripts/                            installation et outils (test de connexion)
+tests/                              tests automatiques (sans matériel)
 ```
 
 ## Installation
@@ -36,7 +40,7 @@ Windows (PowerShell) :
 .\.venv\Scripts\Activate.ps1
 ```
 
-Si le dépôt a été cloné sans `--recurse-submodules`, le script d'installation récupère le sous-module.
+Si le dépôt a été cloné sans `--recurse-submodules`, le script d'installation récupère les sous-modules.
 
 ## Vérifier l'installation
 
@@ -44,7 +48,7 @@ Si le dépôt a été cloné sans `--recurse-submodules`, le script d'installati
 pytest
 ```
 
-## Tester la connexion à un instrument
+## Tester la connexion à un instrument Bronkhorst
 
 ```bash
 python scripts/test_connexion_propar.py --lister-ports
@@ -52,12 +56,25 @@ python scripts/test_connexion_propar.py --port COM3
 python scripts/test_connexion_propar.py --port COM3 --scanner   # plusieurs instruments sur FLOW-BUS
 ```
 
-Sous Linux, l'utilisateur doit avoir accès au port série (groupe `dialout`).
+## Tester le SensorBridge et le capteur température/humidité
 
-## Mettre à jour propar
+Le script alimente la voie choisie, liste les adresses I2C détectées, puis fait une mesure si le modèle du capteur
+est précisé (`sht4x`, `sht3x` ou `shtc3`).
 
 ```bash
-git submodule update --remote externe/bronkhorst-propar
-git add externe/bronkhorst-propar
-git commit -m "Mise à jour de bronkhorst-propar"
+python scripts/test_connexion_sensorbridge.py --lister-ports
+python scripts/test_connexion_sensorbridge.py --port COM4
+python scripts/test_connexion_sensorbridge.py --port COM4 --voie 1 --sht sht4x
+```
+
+Options : `--tension` (alimentation du capteur, 3,3 V par défaut), `--baudrate` (460800 par défaut).
+
+Sous Linux, l'utilisateur doit avoir accès aux ports série (groupe `dialout`).
+
+## Mettre à jour les bibliothèques des fabricants
+
+```bash
+git submodule update --remote
+git add externe
+git commit -m "Mise à jour des sous-modules"
 ```
