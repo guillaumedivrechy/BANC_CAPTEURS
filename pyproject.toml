@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "banc-capteurs"
+version = "0.1.0"
+description = "Banc de test de capteurs — pilotage des régulateurs de débit Bronkhorst (protocole ProPar)"
+readme = "README.md"
+requires-python = ">=3.9"
+# bronkhorst_propar est installé depuis le sous-module git externe/bronkhorst-propar
+# (voir requirements.txt), il n'est donc pas listé ici pour éviter la version PyPI.
+dependencies = [
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

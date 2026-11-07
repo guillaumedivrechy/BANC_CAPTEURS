@@ -1,0 +1,3 @@
+[submodule "externe/bronkhorst-propar"]
+	path = externe/bronkhorst-propar
+	url = https://github.com/bronkhorst-developer/bronkhorst-propar.git
