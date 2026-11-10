@@ -12,9 +12,12 @@ La centrale d'acquisition **Keysight 34970A** (liaison RS-232) n'a pas de biblio
 [guide RS-232](src/banc_capteurs/equipements/keysight_34970a/README.md) décrit le câblage, la configuration de
 l'appareil et les codes d'erreur.
 
+La spécification du logiciel est en cours de rédaction dans [docs/specification.md](docs/specification.md).
+
 ## Arborescence
 
 ```
+docs/                               spécification du logiciel
 externe/bronkhorst-propar/          sous-module git : bibliothèque ProPar de Bronkhorst
 externe/python-shdlc-sensorbridge/  sous-module git : pilote du SensorBridge Sensirion
 src/banc_capteurs/                  code du banc
