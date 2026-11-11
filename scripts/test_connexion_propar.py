@@ -9,6 +9,7 @@ Exemples :
 import argparse
 import sys
 
+from serial import SerialException
 from serial.tools import list_ports
 
 import propar
@@ -42,9 +43,14 @@ def tester_instrument(port, adresse, baudrate):
     print(f"Numéro de série : {numero_serie}")
     print(f"Fluide          : {instr.readParameter(DDE_FLUIDE)}")
     print(f"Capacité        : {instr.readParameter(DDE_CAPACITE)} {instr.readParameter(DDE_UNITE)}")
-    print(f"Mesure          : {mesure}  ({mesure / 320:.2f} %)")
-    print(f"Consigne        : {consigne}  ({consigne / 320:.2f} %)")
+    print(f"Mesure          : {en_pourcent(mesure)}")
+    print(f"Consigne        : {en_pourcent(consigne)}")
     return True
+
+
+def en_pourcent(valeur):
+    """Valeur brute 0-32000 et son équivalent en % ; « non disponible » sans réponse."""
+    return "non disponible" if valeur is None else f"{valeur}  ({valeur / 320:.2f} %)"
 
 
 def scanner_bus(port, baudrate):
@@ -72,8 +78,12 @@ def main():
         lister_ports()
         return 0
 
-    ok = scanner_bus(args.port, args.baudrate) if args.scanner \
-        else tester_instrument(args.port, args.adresse, args.baudrate)
+    try:
+        ok = scanner_bus(args.port, args.baudrate) if args.scanner \
+            else tester_instrument(args.port, args.adresse, args.baudrate)
+    except SerialException as erreur:
+        print(f"Échec : {erreur}", file=sys.stderr)
+        return 1
     return 0 if ok else 1
 
 

@@ -13,9 +13,10 @@ Exemples :
 import argparse
 import sys
 
+from serial import SerialException
 from serial.tools import list_ports
 
-from banc_capteurs.equipements.keysight_34970a import Keysight34970A
+from banc_capteurs.equipements.keysight_34970a import Keysight34970A, Keysight34970AErreur
 
 
 def lister_ports():
@@ -45,16 +46,20 @@ def main():
         lister_ports()
         return 0
 
-    with Keysight34970A.rs232(args.port, args.baudrate, args.flux, stopbits=args.stopbits) as daq:
-        print(f"Identification  : {daq.identifier()}")
-        for slot in (1, 2, 3):
-            print(f"Slot {slot}          : {daq.type_carte(slot)}")
-        if args.fonction:
-            valeurs = daq.mesurer(args.fonction, args.voies, args.parametres)
-            print(f"Mesure {args.fonction} (@{args.voies}) : "
-                  + ", ".join(f"{v:.6g}" for v in valeurs))
-        erreurs = daq.lire_erreurs()
-        print("Erreurs         : " + (", ".join(f"{c} {m}" for c, m in erreurs) or "aucune"))
+    try:
+        with Keysight34970A.rs232(args.port, args.baudrate, args.flux, stopbits=args.stopbits) as daq:
+            print(f"Identification  : {daq.identifier()}")
+            for slot in (1, 2, 3):
+                print(f"Slot {slot}          : {daq.type_carte(slot)}")
+            if args.fonction:
+                valeurs = daq.mesurer(args.fonction, args.voies, args.parametres, timeout_s=30)
+                print(f"Mesure {args.fonction} (@{args.voies}) : "
+                      + ", ".join("hors plage" if v > 9e37 else f"{v:.6g}" for v in valeurs))
+            erreurs = daq.lire_erreurs()
+            print("Erreurs         : " + (", ".join(f"{c} {m}" for c, m in erreurs) or "aucune"))
+    except (SerialException, TimeoutError, Keysight34970AErreur, ValueError) as erreur:
+        print(f"Échec : {erreur}", file=sys.stderr)
+        return 1
     return 0
 
 

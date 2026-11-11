@@ -28,7 +28,7 @@ tests/                              tests automatiques (sans matériel)
 
 ## Installation
 
-Prérequis : Python 3.9 ou plus récent, et git.
+Prérequis : Python 3.9 ou plus récent, git, et un accès à Internet pendant l'installation.
 
 ```bash
 git clone --recurse-submodules https://github.com/guillaumedivrechy/BANC_CAPTEURS.git
@@ -47,6 +47,13 @@ Windows (PowerShell) :
 ```powershell
 .\scripts\installer.ps1
 .\.venv\Scripts\Activate.ps1
+```
+
+Si PowerShell refuse d'exécuter les scripts (« l'exécution de scripts est désactivée »), autoriser les scripts
+pour la fenêtre en cours, puis relancer les deux commandes :
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 Si le dépôt a été cloné sans `--recurse-submodules`, le script d'installation récupère les sous-modules.
@@ -76,7 +83,8 @@ python scripts/test_connexion_sensorbridge.py --port COM4
 python scripts/test_connexion_sensorbridge.py --port COM4 --voie 1 --sht sht4x
 ```
 
-Options : `--tension` (alimentation du capteur, 3,3 V par défaut), `--baudrate` (460800 par défaut).
+Options : `--tension` (alimentation du capteur : 1,2 à 5,5 V par valeurs fixes, 3,3 V par défaut),
+`--adresse-i2c` (si le capteur n'est pas à son adresse habituelle, ex. `0x45`), `--baudrate` (460800 par défaut).
 
 ## Tester la centrale Keysight 34970A
 

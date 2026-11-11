@@ -30,14 +30,24 @@ Les points encore ouverts sont listés en fin de document.
 En calibre automatique, le 34970A ne renvoie pas le calibre utilisé avec la mesure. Pour que le
 calibre consigné soit certain, c'est le logiciel qui le choisit, voie par voie :
 
-1. Chaque voie est mesurée sur un calibre fixe, celui retenu au scan précédent
-   (100 MΩ au premier scan).
-2. Si la mesure est en dépassement, la voie est remesurée sur le calibre 100 MΩ.
+1. Chaque voie est mesurée sur un calibre fixe, celui retenu au scan précédent.
+2. Si la mesure est en dépassement, la voie est remesurée sur le calibre supérieur.
 3. Si la valeur est inférieure à 10 % du calibre (sauf sur 100 Ω), la voie est remesurée
-   directement sur le plus petit calibre qui contient la valeur.
-4. La valeur enregistrée est celle de la dernière mesure, avec son calibre.
+   sur le calibre inférieur.
+4. Les étapes 2 et 3 se répètent, une décade à la fois, jusqu'à ce que la valeur soit entre
+   10 % et 120 % du calibre. La valeur enregistrée est celle de la dernière mesure, avec son calibre.
+5. Une voie en dépassement sur le calibre 100 MΩ est enregistrée « hors plage ».
 
-Une voie demande au plus deux mesures supplémentaires par scan, ce que la cadence de 30 s permet largement.
+Le changement se fait une décade à la fois parce qu'une mesure faite très en dessous de son calibre
+est trop imprécise pour choisir directement le bon calibre (sur le calibre 100 MΩ, l'incertitude
+est de l'ordre de 10 kΩ).
+
+En fonctionnement normal, une voie garde son calibre ou change d'une décade : zéro ou une mesure
+supplémentaire. Au pire (premier scan, ou saut brutal de plusieurs décades), une voie demande jusqu'à
+six mesures supplémentaires ; le scan peut alors dépasser la cadence, ce que le logiciel signale.
+Au premier scan, la recherche part du calibre 100 MΩ.
+
+Cette gestion du calibre n'est pas encore programmée dans le pilote.
 
 ### 2.2 Données enregistrées à chaque mesure
 

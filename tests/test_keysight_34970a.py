@@ -15,7 +15,8 @@ from banc_capteurs.equipements.keysight_34970a import (
 class FauxTransport:
     """Simule le 34970A : enregistre les commandes et renvoie des réponses prévues."""
 
-    def __init__(self, reponses=None):
+    def __init__(self, reponses=None, muet=False):
+        self.muet = muet
         self.envoye = []
         self.reponses = dict(reponses or {})
         self.erreurs = []
@@ -26,7 +27,10 @@ class FauxTransport:
         assert donnees.endswith(b"\n")
         commande = donnees.decode("ascii").strip()
         self.envoye.append(commande)
-        if commande == "SYST:ERR?":
+        if self.muet:
+            if commande.endswith("?") or "? " in commande:
+                self._a_lire.append(b"")
+        elif commande == "SYST:ERR?":
             code, msg = self.erreurs.pop(0) if self.erreurs else (0, "No error")
             self._a_lire.append(f'{code:+d},"{msg}"\n'.encode())
         elif commande.endswith("?") or "? " in commande:
@@ -56,10 +60,36 @@ def test_verrouillage_face_avant():
     assert t.envoye[0] == "SYST:RWL"
 
 
+def test_ouverture_impose_le_format_des_mesures():
+    t = FauxTransport()
+    Keysight34970A(t).ouvrir()
+    for commande in ("FORM:READ:CHAN ON", "FORM:READ:TIME ON", "FORM:READ:TIME:TYPE ABS",
+                     "FORM:READ:UNIT OFF", "FORM:READ:ALAR OFF"):
+        assert commande in t.envoye
+
+
+def test_liaison_refermee_si_appareil_muet_a_l_ouverture():
+    t = FauxTransport(muet=True)
+    with pytest.raises(TimeoutError, match="null-modem"):
+        with Keysight34970A(t):
+            pass
+    assert t.ferme
+
+
 def test_mesure_immediate():
-    t = FauxTransport({"MEAS:TEMP? TC,K,(@101:102)": "+2.13000000E+01,+2.15000000E+01"})
+    t = FauxTransport({"MEAS:TEMP? TC,K,(@101:102)":
+                       "+2.13000000E+01,2026,11,07,14,30,15.250,101,"
+                       "+2.15000000E+01,2026,11,07,14,30,15.270,102"})
     daq = Keysight34970A(t)
     assert daq.mesurer("TEMP", "101:102", "TC,K") == [21.3, 21.5]
+    assert [m.voie for m in daq.mesurer_detail("TEMP", "101:102", "TC,K")] == [101, 102]
+
+
+def test_mesure_immediate_sans_voie_ni_horodatage():
+    t = FauxTransport({"MEAS:RES? (@101:102)": "+1.20000000E+03,+9.90000000E+37"})
+    daq = Keysight34970A(t)
+    daq.configurer_format(voie=False, horodatage=False)
+    assert daq.mesurer("RES", "101:102") == [1200.0, 9.9e37]
     assert t.envoye[-1] == "SYST:ERR?"  # erreurs vérifiées après la mesure
 
 
@@ -80,9 +110,23 @@ def test_erreur_appareil_avec_aide():
 
 
 def test_absence_de_reponse():
-    t = FauxTransport()  # aucune réponse prévue pour *IDN?
+    t = FauxTransport(muet=True)
     with pytest.raises(TimeoutError, match="null-modem"):
         Keysight34970A(t).identifier()
+
+
+def test_requete_refusee_par_l_appareil():
+    # L'appareil ne répond pas à une requête refusée : le pilote lit alors l'erreur.
+    t = FauxTransport()  # aucune réponse prévue pour MEAS:TEMP?
+    t.erreurs = [(550, "Command not allowed in local")]
+    with pytest.raises(Keysight34970AErreur, match="SYST:REM"):
+        Keysight34970A(t).mesurer("TEMP", "101", "TC,K")
+
+
+def test_requete_trop_longue():
+    t = FauxTransport()  # l'appareil répond aux erreurs mais pas encore à la mesure
+    with pytest.raises(TimeoutError, match="timeout_s"):
+        Keysight34970A(t).mesurer("RES", "101:120")
 
 
 def test_type_carte():

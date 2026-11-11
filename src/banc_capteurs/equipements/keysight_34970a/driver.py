@@ -74,6 +74,16 @@ class TransportSerie:
         self._serie = serial.Serial(port, baudrate, bytesize=bytesize, parity=parite,
                                     stopbits=stopbits, timeout=timeout,
                                     **_CONTROLES_FLUX[controle_flux])
+        self._serie.reset_input_buffer()  # ignore d'éventuels restes d'un échange précédent
+
+    @property
+    def timeout(self) -> float:
+        """Délai maximal d'attente d'une réponse, en secondes."""
+        return self._serie.timeout
+
+    @timeout.setter
+    def timeout(self, valeur: float) -> None:
+        self._serie.timeout = valeur
 
     def write(self, donnees: bytes) -> None:
         self._serie.write(donnees)
@@ -150,9 +160,11 @@ class Keysight34970A:
     # --- Connexion -------------------------------------------------------------
 
     def ouvrir(self) -> None:
-        """Passe en mode distant (obligatoire en RS-232) et vide la file d'erreurs."""
+        """Passe en mode distant (obligatoire en RS-232), vide la file d'erreurs et
+        impose le format des mesures attendu par le pilote."""
         self.write("SYST:RWL" if self.verrouiller_face_avant else "SYST:REM")
         self.lire_erreurs()
+        self.configurer_format(self._voie, self._horodatage)
 
     def fermer(self) -> None:
         """Rend la main à la face avant et ferme la liaison."""
@@ -162,7 +174,11 @@ class Keysight34970A:
             self.transport.close()
 
     def __enter__(self) -> "Keysight34970A":
-        self.ouvrir()
+        try:
+            self.ouvrir()
+        except BaseException:
+            self.transport.close()  # ne pas laisser le port ouvert si l'appareil ne répond pas
+            raise
         return self
 
     def __exit__(self, *exc) -> None:
@@ -173,12 +189,46 @@ class Keysight34970A:
     def write(self, commande: str) -> None:
         self.transport.write((commande + "\n").encode("ascii"))
 
-    def query(self, commande: str) -> str:
-        self.write(commande)
-        reponse = self.transport.readline()
+    def _lire_ligne(self, timeout_s: Optional[float] = None) -> Optional[str]:
+        """Lit une réponse ; None si l'appareil n'a pas répondu dans le délai."""
+        reglable = timeout_s is not None and hasattr(self.transport, "timeout")
+        if reglable:
+            ancien, self.transport.timeout = self.transport.timeout, timeout_s
+        try:
+            reponse = self.transport.readline()
+        finally:
+            if reglable:
+                self.transport.timeout = ancien
         if not reponse.endswith(b"\n"):
-            raise TimeoutError(f"« {commande} » : {_AIDE_TIMEOUT}")
+            return None
         return reponse.decode("ascii").strip()
+
+    def query(self, commande: str, timeout_s: Optional[float] = None) -> str:
+        """Envoie une requête et renvoie la réponse.
+
+        ``timeout_s`` allonge le délai d'attente pour une requête longue (scan de
+        nombreuses voies). Sans réponse, l'appareil est interrogé sur ses erreurs :
+        une commande refusée lève ``Keysight34970AErreur``, un appareil muet ``TimeoutError``.
+        """
+        self.write(commande)
+        reponse = self._lire_ligne(timeout_s)
+        if reponse is not None:
+            return reponse
+        if commande != "SYST:ERR?":
+            self.write("SYST:ERR?")
+            erreur = self._lire_ligne(2.0)
+            if erreur is not None:
+                code, _, message = erreur.partition(",")
+                try:
+                    code = int(code)
+                except ValueError:  # c'est le résultat de la requête, arrivé en retard
+                    code = 0
+                if code != 0:
+                    erreurs = [(code, message.strip().strip('"'))] + self.lire_erreurs()
+                    raise Keysight34970AErreur(erreurs, commande)
+                raise TimeoutError(f"« {commande} » : l'appareil répond mais n'a pas renvoyé le résultat "
+                                   f"dans le délai ; augmenter timeout_s (mesure longue ?).")
+        raise TimeoutError(f"« {commande} » : {_AIDE_TIMEOUT}")
 
     def lire_erreurs(self) -> List[Tuple[int, str]]:
         """Vide la file d'erreurs de l'appareil (10 au maximum)."""
@@ -215,6 +265,7 @@ class Keysight34970A:
     def reinitialiser(self) -> None:
         """*RST : réglages d'usine, vide la liste de scan et la mémoire."""
         self.commande("*RST")
+        self.configurer_format(self._voie, self._horodatage)
 
     # --- Mesures ---------------------------------------------------------------
 
@@ -224,12 +275,22 @@ class Keysight34970A:
         voies = voies.strip().strip("()").lstrip("@")
         return f"(@{voies})"
 
-    def mesurer(self, fonction: str, voies: str, parametres: str = "") -> List[float]:
-        """Mesure immédiate (MEAS?), ex. ``mesurer("TEMP", "101:105", "TC,K")``."""
+    def mesurer(self, fonction: str, voies: str, parametres: str = "",
+                timeout_s: Optional[float] = None) -> List[float]:
+        """Mesure immédiate (MEAS?), ex. ``mesurer("TEMP", "101:105", "TC,K")``.
+
+        Renvoie les valeurs dans l'ordre des voies. Prévoir ``timeout_s`` si la mesure
+        de toutes les voies peut dépasser le délai de réponse par défaut (10 s).
+        """
+        return [m.valeur for m in self.mesurer_detail(fonction, voies, parametres, timeout_s)]
+
+    def mesurer_detail(self, fonction: str, voies: str, parametres: str = "",
+                       timeout_s: Optional[float] = None) -> List[Mesure]:
+        """Comme ``mesurer``, avec la voie et l'heure de chaque mesure (selon le format)."""
         args = f"{parametres},{self._voies(voies)}" if parametres else self._voies(voies)
-        reponse = self.query(f"MEAS:{fonction}? {args}")
+        reponse = self.query(f"MEAS:{fonction}? {args}", timeout_s)
         self.verifier_erreurs(f"MEAS:{fonction}?")
-        return [float(x) for x in reponse.split(",") if x.strip()]
+        return decoder_mesures(reponse, voie=self._voie, horodatage=self._horodatage)
 
     def configurer(self, fonction: str, voies: str, parametres: str = "") -> None:
         """CONF, ex. ``configurer("VOLT:DC", "301", "10,0.001")``."""
